@@ -3,6 +3,7 @@ package simpledb;
 import java.io.*;
 
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -187,20 +188,7 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
-        ArrayList<Page> changedPages = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId()).deleteTuple(tid,t);
-        for(Page page:changedPages){
-            if(pages.contains(page.getId())){
-                pages.put(page.getId(),page);
-            }else{
-                if(pages.size() == numPages){
-                    evictPage();
-                    if(pages.size() == numPages){
-                        throw new DbException("BufferPool is out of space");
-                    }
-                }
-                pages.put(page.getId(),page);
-            }
-        }
+        Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId()).deleteTuple(tid,t);
     }
 
     /**
@@ -211,7 +199,9 @@ public class BufferPool {
     public synchronized void flushAllPages() throws IOException {
         // some code goes here
         // not necessary for lab1
-
+        for(PageId pageId : pages.keySet()){
+            flushPage(pageId);
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -225,6 +215,9 @@ public class BufferPool {
     public synchronized void discardPage(PageId pid) {
         // some code goes here
         // not necessary for lab1
+        if(pid!=null){
+            pages.remove(pid);
+        }
     }
 
     /**
@@ -234,6 +227,9 @@ public class BufferPool {
     private synchronized  void flushPage(PageId pid) throws IOException {
         // some code goes here
         // not necessary for lab1
+        Database.getCatalog().getDatabaseFile(pid.getTableId()).writePage(pages.get(pid));
+        pages.get(pid).markDirty(false,null);
+
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -250,6 +246,12 @@ public class BufferPool {
     private synchronized  void evictPage() throws DbException {
         // some code goes here
         // not necessary for lab1
+        for(Map.Entry<PageId,Page> entry : pages.entrySet()){
+            PageId pageId = entry.getKey();
+            pages.remove(pageId);
+            return;
+        }
+        throw new DbException("BufferPool is out of space");
     }
 
 }
