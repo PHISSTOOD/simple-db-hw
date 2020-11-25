@@ -8,6 +8,9 @@ import java.util.*;
 public class Filter extends Operator {
 
     private static final long serialVersionUID = 1L;
+    private Predicate predicate;
+    private OpIterator opIterator;
+    private OpIterator[] opIterators;
 
     /**
      * Constructor accepts a predicate to apply and a child operator to read
@@ -20,29 +23,37 @@ public class Filter extends Operator {
      */
     public Filter(Predicate p, OpIterator child) {
         // some code goes here
+        this.predicate = p;
+        this.opIterator = child;
+        this.opIterators = new OpIterator[]{child};
     }
 
     public Predicate getPredicate() {
         // some code goes here
-        return null;
+        return this.predicate;
     }
 
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        return this.opIterator.getTupleDesc();
     }
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
+        this.opIterator.open();
+        super.open();
     }
 
     public void close() {
         // some code goes here
+        this.opIterator.close();
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         // some code goes here
+        this.opIterator.rewind();
     }
 
     /**
@@ -57,18 +68,25 @@ public class Filter extends Operator {
     protected Tuple fetchNext() throws NoSuchElementException,
             TransactionAbortedException, DbException {
         // some code goes here
+        while(this.opIterator.hasNext()){
+            Tuple tuple = this.opIterator.next();
+            if(this.predicate.filter(tuple)){
+                return tuple;
+            }
+        }
         return null;
     }
 
     @Override
     public OpIterator[] getChildren() {
         // some code goes here
-        return null;
+        return this.opIterators;
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
         // some code goes here
+        this.opIterators = children;
     }
 
 }

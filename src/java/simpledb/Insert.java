@@ -1,5 +1,8 @@
 package simpledb;
 
+import java.io.IOException;
+import java.util.ArrayList;
+
 /**
  * Inserts tuples read from the child operator into the tableId specified in the
  * constructor
@@ -7,6 +10,12 @@ package simpledb;
 public class Insert extends Operator {
 
     private static final long serialVersionUID = 1L;
+    private TransactionId transactionId;
+    private OpIterator opIterator;
+    private int tableId;
+    private OpIterator[] opIterators;
+    private int count;
+    private TupleDesc tupleDesc;
 
     /**
      * Constructor.
@@ -24,23 +33,35 @@ public class Insert extends Operator {
     public Insert(TransactionId t, OpIterator child, int tableId)
             throws DbException {
         // some code goes here
+        this.transactionId = t;
+        this.opIterator = child;
+        this.tableId = tableId;
+        this.opIterators = new OpIterator[]{child};
+        this.count = 0;
+        this.tupleDesc = Utility.getTupleDesc(1);
     }
 
     public TupleDesc getTupleDesc() {
         // some code goes here
-        return null;
+        return this.tupleDesc;
     }
 
     public void open() throws DbException, TransactionAbortedException {
         // some code goes here
+        this.opIterator.open();
+        super.open();
     }
 
     public void close() {
         // some code goes here
+        this.opIterator.close();
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         // some code goes here
+        this.opIterator.rewind();
+
     }
 
     /**
@@ -58,17 +79,29 @@ public class Insert extends Operator {
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         // some code goes here
-        return null;
+        while(opIterator.hasNext()){
+            try{
+                Tuple tuple = opIterator.next();
+                Database.getBufferPool().insertTuple(transactionId,tableId,tuple);
+                count++;
+            }catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        Tuple tuple = new Tuple(Utility.getTupleDesc(1));
+        tuple.setField(0,new IntField(count));
+        return tuple;
     }
 
     @Override
     public OpIterator[] getChildren() {
         // some code goes here
-        return null;
+        return this.opIterators;
     }
 
     @Override
     public void setChildren(OpIterator[] children) {
         // some code goes here
+        this.opIterators = children;
     }
 }

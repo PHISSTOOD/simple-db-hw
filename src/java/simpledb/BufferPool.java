@@ -2,6 +2,7 @@ package simpledb;
 
 import java.io.*;
 
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -29,7 +30,7 @@ public class BufferPool {
     public static final int DEFAULT_PAGES = 50;
 
     private ConcurrentHashMap<PageId,Page> pages;
-
+    private int numPages;
     private ReadWriteLock readWriteLock;
 
     /**
@@ -39,6 +40,7 @@ public class BufferPool {
      */
     public BufferPool(int numPages) {
         // some code goes here
+        this.numPages = numPages;
         this.pages = new ConcurrentHashMap<>(numPages);
         this.readWriteLock = new ReentrantReadWriteLock();
     }
@@ -152,6 +154,20 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+        ArrayList<Page> changedPages = Database.getCatalog().getDatabaseFile(tableId).insertTuple(tid,t);
+        for(Page page:changedPages){
+            if(pages.contains(page.getId())){
+                pages.put(page.getId(),page);
+            }else{
+                if(pages.size() == numPages){
+                    evictPage();
+                    if(pages.size() == numPages){
+                        throw new DbException("BufferPool is out of space");
+                    }
+                }
+                pages.put(page.getId(),page);
+            }
+        }
     }
 
     /**
@@ -171,6 +187,20 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+        ArrayList<Page> changedPages = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId()).deleteTuple(tid,t);
+        for(Page page:changedPages){
+            if(pages.contains(page.getId())){
+                pages.put(page.getId(),page);
+            }else{
+                if(pages.size() == numPages){
+                    evictPage();
+                    if(pages.size() == numPages){
+                        throw new DbException("BufferPool is out of space");
+                    }
+                }
+                pages.put(page.getId(),page);
+            }
+        }
     }
 
     /**
