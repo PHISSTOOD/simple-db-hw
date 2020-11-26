@@ -111,7 +111,7 @@ public class JoinOptimizer {
             // HINT: You may need to use the variable "j" if you implemented
             // a join algorithm that's more complicated than a basic
             // nested-loops join.
-            return -1.0;
+            return cost1+card1*cost2+card1*card2;
         }
     }
 
@@ -155,9 +155,15 @@ public class JoinOptimizer {
             String field2PureName, int card1, int card2, boolean t1pkey,
             boolean t2pkey, Map<String, TableStats> stats,
             Map<String, Integer> tableAliasToId) {
-        int card = 1;
-        // some code goes here
-        return card <= 0 ? 1 : card;
+        if (!joinOp.equals(Predicate.Op.EQUALS)) {
+            return card1*card2*3/10;
+        } else if (t1pkey) {
+            return card2;
+        } else if (t2pkey) {
+            return card1;
+        } else {
+            return Math.max(card1, card2);
+        }
     }
 
     /**
@@ -218,10 +224,37 @@ public class JoinOptimizer {
             HashMap<String, Double> filterSelectivities, boolean explain)
             throws ParsingException {
         //Not necessary for labs 1--3
-
         // some code goes here
         //Replace the following
-        return joins;
+        for(LogicalJoinNode logicalJoinNode : joins){
+            if(!stats.containsKey(logicalJoinNode.t1Alias) || !stats.containsKey(logicalJoinNode.t2Alias) ||
+            !filterSelectivities.containsKey(logicalJoinNode.t1Alias) || !filterSelectivities.containsKey(logicalJoinNode.t2Alias)){
+                throw new ParsingException("argument missing table in the join");
+            }
+        }
+        PlanCache planCache = new PlanCache();
+        for(int i = 1;i<=joins.size();i++){
+            Set<Set<LogicalJoinNode>> setLogicalJoinNode = enumerateSubsets(joins,i);
+            for(Set<LogicalJoinNode> set : setLogicalJoinNode){
+                CostCard bestPlan = null;
+                for(LogicalJoinNode logicalJoinNode : set){
+                    CostCard curPlan = computeCostAndCardOfSubplan(stats,filterSelectivities,logicalJoinNode,
+                            set,null == bestPlan? Double.POSITIVE_INFINITY: bestPlan.cost,planCache);
+                    if(curPlan==null){
+                        continue;
+                    }else if(bestPlan==null || curPlan.cost<bestPlan.cost){
+                        bestPlan = curPlan;
+                    }
+                }
+                if(bestPlan!=null){
+                    planCache.addPlan(set,bestPlan.cost,bestPlan.card,bestPlan.plan);
+                }
+            }
+        }
+        if(explain){
+            printJoins(joins,planCache,stats,filterSelectivities);
+        }
+        return planCache.getOrder(new HashSet<>(joins));
     }
 
     // ===================== Private Methods =================================
