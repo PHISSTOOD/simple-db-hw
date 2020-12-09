@@ -32,7 +32,7 @@ public class BufferPool {
 
     private ConcurrentHashMap<PageId,Page> pages;
     private int numPages;
-    private ReadWriteLock readWriteLock;
+    private LockManager lockManager;
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
@@ -43,7 +43,7 @@ public class BufferPool {
         // some code goes here
         this.numPages = numPages;
         this.pages = new ConcurrentHashMap<>(numPages);
-        this.readWriteLock = new ReentrantReadWriteLock();
+        this.lockManager = new LockManager(numPages, 2*numPages);
     }
     
     public static int getPageSize() {
@@ -78,7 +78,7 @@ public class BufferPool {
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        this.readWriteLock.readLock().lock();
+        lockManager.acquireLock(pid, tid, perm);
         Page result = this.pages.get(pid);
         if(result==null){
             if(this.pages.size()>=DEFAULT_PAGES){
@@ -88,7 +88,6 @@ public class BufferPool {
             result = file.readPage(pid);
             this.pages.put(pid, result);
         }
-        readWriteLock.readLock().unlock();
         return result;
     }
 
@@ -104,6 +103,7 @@ public class BufferPool {
     public  void releasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        lockManager.releaseLock(tid,pid);
     }
 
     /**
@@ -120,7 +120,7 @@ public class BufferPool {
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        return lockManager.holdsLock(tid,p);
     }
 
     /**
@@ -134,6 +134,21 @@ public class BufferPool {
         throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
+        if(commit){
+            flushPages(tid);
+        }
+
+        ArrayList<PageId> pageIds = lockManager.getLockList(tid);
+        if(pageIds == null){
+            for(PageId pageId : pageIds){
+                Page page = pages.getOrDefault(pageId,null);
+                if(page != null && page.isDirty()!=null){
+                    discardPage(pageId);
+                }
+            }
+        }
+
+        lockManager.releaseLocksOnTransaction(tid);
     }
 
     /**
@@ -248,10 +263,13 @@ public class BufferPool {
         // not necessary for lab1
         for(Map.Entry<PageId,Page> entry : pages.entrySet()){
             PageId pageId = entry.getKey();
-            pages.remove(pageId);
-            return;
+            Page page = entry.getValue();
+            if(page.isDirty()==null){
+                pages.remove(pageId);
+                return;
+            }
         }
-        throw new DbException("BufferPool is out of space");
+        throw new DbException("BufferPool: All pages are marked as dirty");
     }
 
 }
