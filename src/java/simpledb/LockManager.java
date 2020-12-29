@@ -3,9 +3,6 @@ package simpledb;
 import java.security.acl.Permission;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.StampedLock;
 
 public class LockManager {
     public ConcurrentHashMap<PageId,PageLock> pageIdLockMap;
